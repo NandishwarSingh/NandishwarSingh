@@ -1,5 +1,5 @@
 - 👋 Hi, I’m @NandishwarSingh
-- 👀 I’m interested in javascript ,  python and Zig
+- 👀 I’m interested in javascript, c, assembly,  python, and Zig
 - 🌱 I’m currently learning Zig
 - 💞️ I’m looking to collaborate on IDK
 - 📫 How to reach me Nandubhai222@gmail.com 
