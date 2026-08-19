@@ -31,6 +31,7 @@ handles my notes, files, mail and voice.
 | **[Helm](https://github.com/NandishwarSingh/helm)**<br><sub>`TypeScript` `Next.js` `Postgres`</sub> | A **keyboard-first command center** for Gmail and Google Calendar, built on [Corsair](https://corsair.dev). Multi-tenant *and* multi-account, strict cache-read/live-write split, realtime push for both Gmail (Pub/Sub) and Calendar (`events.watch`), optimistic edits with a 7-second undo. [▶ demo](https://www.youtube.com/watch?v=RC5qz3lX104) |
 | **[Chitra](https://github.com/NandishwarSingh/chitra-video-editor)**<br><sub>`TypeScript` `Rust` `WebGPU`</sub> | A **browser-native AI video editor**. WebGPU preview compositor, FFmpeg-in-a-worker export whose text math is shared with the preview so the two can't drift, chat-driven editing through a custom DSL (EAL), local speech-to-text, beat detection and SAM2/EfficientTAM rotoscoping. No clip ever has to leave the machine. |
 | **[GeoPolitiq](https://github.com/NandishwarSingh/GeoPolitiq)**<br><sub>`JavaScript` `MongoDB`</sub> | A **geopolitics intelligence platform** — scheduled AI generation with authenticity verification before publish, region-targeted web push, an auto-linked tag graph with paginated archives, and a newspaper-style reading experience. |
+| **FPGA display-path accelerator**<br><sub>`Verilog` `cocotb` `Verilator` · design stage</sub> | An FPGA that sits between a handheld's SoC and its panel: render at 360p, reconstruct on the way out. The real work is the accelerator's own memory subsystem — DDR3 front end with a row-hit-aware scheduler, QoS arbiter (scanout hard real-time, flow estimation best-effort), line-buffer reuse. Verified the way RTL has to be: a golden model the RTL must match bit-exact, cocotb testbenches on Verilator running headless in CI, constrained-random with functional coverage, formal on the arbiter, and synthesis in the loop so timing and LUT budgets fail CI instead of surprising me. No RTL yet — the design log came first, and it killed most of my own assumptions. |
 
 <br>
 
@@ -46,70 +47,10 @@ handles my notes, files, mail and voice.
 
 <br>
 
-## Going down a layer — FPGA & digital design
-
-I got to compilers by refusing to treat codegen as magic, so the same instinct
-pointed at the hardware underneath it. I'm working up the ladder deliberately:
-combinational and sequential logic → a register file → a fetch-decode-execute
-datapath → HDL → real silicon on an FPGA → pipelining, hazards and caches →
-SIMT and the memory hierarchy a GPU actually needs.
-
-**The design in progress** is an FPGA sitting in the *display path* of a handheld —
-it takes low-resolution frames over HDMI and reconstructs them, so the SoC can
-render at 360p and the panel still gets something worth looking at. Writing the
-design log first killed most of my own assumptions: a display-path tap yields
-post-composite RGB with no motion vectors or depth, an external FPGA can't sit in
-an x86 page-table walk (~1–10 ns on-die vs ~500–2000 ns over PCIe), and frame
-interpolation costs a full frame of latency *by construction*. What survived is
-sharper than what I started with — the real work is the accelerator's own memory
-subsystem: a DDR3 front end with a bank/row-hit-aware scheduler, a multi-master
-arbiter with QoS (scanout is hard real-time, flow estimation is best-effort),
-tiled vs raster access ordering, line-buffer reuse, DMA descriptor engines, and
-tear-free double buffering. Which is, more or less, a GPU memory subsystem.
-
-The numbers set the constraints: a streaming 4-tap vertical scaler costs
-**0.185 ms** and ~7.7 KB of BRAM at zero DRAM bandwidth; 720p60 frame generation
-wants **1.33 GB/s** against ~2.1 GB/s usable on 16-bit DDR3-1600; naive full-search
-block matching is **60 Gop/s** and infeasible, but a 3-level pyramid brings it to
-1.5–3 Gop/s. The thesis is falsifiable on purpose: not "beat native rendering,"
-but *beat the panel driver's built-in bilinear scaler at ~zero added latency* —
-scored with SSIM/LPIPS against a native-res reference.
-
-### Verification, because RTL is where "it compiles" means nothing
-
-You can't `printf` a timing violation, and a bug that reaches a bitstream costs
-hours instead of seconds. So the testbench is the deliverable, not an afterthought:
-
-- **A golden model first, RTL second.** Every block gets a C or Python reference
-  implementation. The RTL isn't done when it runs — it's done when it matches the
-  model bit-exact over the whole stimulus set.
-- **[cocotb](https://www.cocotb.org) on [Verilator](https://www.veripool.org/verilator/)** so testbenches are Python and run headless in CI.
-  Self-checking, no human staring at a waveform to decide whether it passed.
-- **Constrained-random + functional coverage,** not a directed test per bug.
-  Directed tests only find the bugs you already thought of; coverage tells you which
-  corners of the state space were never reached.
-- **Assertions on every interface** — stream handshakes hold, no beat is dropped,
-  backpressure is honoured, FIFOs never overflow or read empty.
-- **Formal property checking** on the arbiter and FIFO control paths, where random
-  simulation is weakest and a deadlock hides behind an unlikely interleaving.
-- **Synthesis in the loop.** Every push re-runs lint → sim → coverage → synth, so
-  LUT/BRAM/DSP usage and timing closure are regressions that fail CI, not surprises
-  discovered the week the board arrives.
-- **Image quality as a numeric gate.** SSIM/LPIPS against the reference runs in the
-  same pipeline — "looks better" becomes a number CI can fail on. Waveforms are
-  dumped as artifacts only when something breaks.
-
-<sub>Status: the design log and the analysis above are real; the RTL isn't written yet.
-Hardware for the first track is a Tang Nano 20K and a TFP401 breakout — deliberately
-the cheap board, because committing to a big one before you know your LUT and bandwidth
-budget is just guessing with money.</sub>
-
-<br>
-
 ## Stack
 
 ```
-systems    C · C++ · Rust · Go · Zig · Assembly · QBE · LLVM-free codegen
+systems    C · C++ · Go · Assembly · QBE · LLVM-free codegen
 web        TypeScript · React · Next.js · Svelte · Node · tRPC
 data       Postgres · MongoDB · LSM-trees · S3 / Garage · BLAKE3
 infra      Podman · Caddy · Tailscale · SELinux · Pub/Sub webhooks
