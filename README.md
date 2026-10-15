@@ -3,6 +3,8 @@
 </p>
 
 <p align="center">
+  <a href="https://nandishwarsingh.com"><b>Website</b></a>
+  &nbsp;·&nbsp;
   <a href="https://github.com/NandishwarSingh?tab=repositories"><b>Projects</b></a>
   &nbsp;·&nbsp;
   <a href="https://www.linkedin.com/in/nandishwar-singh-00b7602b0"><b>LinkedIn</b></a>
